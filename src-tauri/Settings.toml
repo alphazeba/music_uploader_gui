@@ -1,4 +1,4 @@
 valid_extensions = ["mp3", "wav", "wave", "m4a"]
 user = "bob"
 password = "marley"
-server_url = "http://localhost:5046"
+server_url = "http://192.168.1.2/api"

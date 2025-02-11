@@ -1,8 +1,8 @@
-use std::{fs::File, io::Read};
+use std::{env, fs::File, io::Read};
 
 use serde::Deserialize;
 use music_uploader_client::{MusicUploaderClientConfig, MusicUploaderClient};
-use tauri::{Manager, State};
+use tauri::{path::BaseDirectory, App, Manager, State};
 
 #[derive(Deserialize)]
 struct Song {
@@ -94,17 +94,17 @@ struct RunState {
 const SUCCESS_MESSAGE: &str = "Boot Success :)";
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let potential_settings = load_settings();
-    let state = GuiState {
-        startup_message: potential_settings
-            .as_ref().err().map(String::to_string).unwrap_or(SUCCESS_MESSAGE.to_string()),
-        run_state: potential_settings.ok().map(|settings| RunState {
-            client: MusicUploaderClient::new(get_config(&settings)),
-            settings,
-        }),
-    };
     tauri::Builder::default()
         .setup(|app| {
+            let potential_settings = load_settings(app);
+            let state = GuiState {
+                startup_message: potential_settings
+                    .as_ref().err().map(String::to_string).unwrap_or(SUCCESS_MESSAGE.to_string()),
+                run_state: potential_settings.ok().map(|settings| RunState {
+                    client: MusicUploaderClient::new(get_config(&settings)),
+                    settings,
+                }),
+            };
             app.manage(state);
             Ok(())
         })
@@ -120,15 +120,17 @@ pub fn run() {
         .expect("error while running tauri application");
 }
 
-fn load_settings() -> Result<Settings, String> {
-    let path = "./Settings.toml";
-    let mut f = File::open(&path)
-        .map_err(|_| format!("Failed to find {}. Make sure it is present", path))?;
+fn load_settings(app: &App) -> Result<Settings, String> {
+    let settings_path = app.path().resolve("Settings.toml", BaseDirectory::Resource)
+        .map_err(|e| e.to_string())?;
+    let settings_path_str = settings_path.to_str().unwrap_or("no settings path :/");
+    let mut f = File::open(&settings_path)
+        .map_err(|_| format!("Failed to find {}. Make sure it is present.", settings_path_str))?;
     let mut file_text = String::new();
     let _ = f.read_to_string(&mut file_text)
-        .map_err(|_| format!("Failed to read contents of {}. idk what ths menas", path))?;
+        .map_err(|_| format!("Failed to read contents of {}. idk what ths menas", settings_path_str))?;
     toml::from_str::<Settings>(&file_text)
-        .map_err(|_| format!("Failed to parse contents of {}, probably typo", path))
+        .map_err(|_| format!("Failed to parse contents of {}, probably typo", settings_path_str))
 }
 
 #[derive(Deserialize)]
