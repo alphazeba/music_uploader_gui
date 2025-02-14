@@ -2586,6 +2586,7 @@ dependencies = [
 name = "music_uploader_server"
 version = "0.1.0"
 dependencies = [
+ "reqwest",
  "rocket",
  "rocket-basicauth",
  "rust-fuzzy-search",

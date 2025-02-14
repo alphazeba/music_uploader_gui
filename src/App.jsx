@@ -23,6 +23,19 @@ function App() {
         fn();
     }, []);
 
+    useEffect(() => {
+        if (state === s_selecting && allFilesSuccessfullyUploaded()) {
+            guiLog("Requesting a scan")
+            invoke("request_scan").then((result) => {
+                guiLog("Succesfully triggered scan");
+                guiLog(result);
+            }).catch((error) => {
+                guiLog("Scan request failed");
+                guiLog(error);
+            })
+        }
+    }, [files, state])
+
     async function upload() {
         let failToUpload = false;
         if (state == s_uploading) {
@@ -67,6 +80,18 @@ function App() {
         }
         guiLog("done");
         setState(s_selecting);
+    }
+
+    function allFilesSuccessfullyUploaded() {
+        if (files.length == 0) {
+            return false;
+        }
+        for (let file of files) {
+            if (file.state !== fs_uploaded) {
+                return false;
+            }
+        }
+        return true;
     }
 
     async function generate_guid() {

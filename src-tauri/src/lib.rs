@@ -58,6 +58,12 @@ fn album_search(state: State<'_, GuiState>, album: String) -> Result<Vec<String>
 }
 
 #[tauri::command]
+fn trigger_scan(state: State<'_, GuiState>) -> Result<(), String> {
+    let run_state = state.run_state.as_ref().ok_or("program did not succesfully boot")?;
+    run_state.client.trigger_scan().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn get_startup_message(state: State<'_, GuiState>) -> String {
     let mut message = state.startup_message.clone();
     if let Some(run_state) = state.run_state.as_ref() {
@@ -115,6 +121,7 @@ pub fn run() {
             get_valid_extensions,
             get_startup_message,
             album_search,
+            trigger_scan,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
