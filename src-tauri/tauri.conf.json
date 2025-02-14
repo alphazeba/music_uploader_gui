@@ -27,7 +27,8 @@
     "targets": "all",
     "icon": [
       "icons/cloud32.png",
-      "icons/cloud128.png"
+      "icons/cloud128.png",
+      "icons/icon.ico"
     ],
     "resources": [
       "./Settings.toml"

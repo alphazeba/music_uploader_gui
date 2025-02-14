@@ -25,14 +25,7 @@ function App() {
 
     useEffect(() => {
         if (state === s_selecting && allFilesSuccessfullyUploaded()) {
-            guiLog("Requesting a scan")
-            invoke("request_scan").then((result) => {
-                guiLog("Succesfully triggered scan");
-                guiLog(result);
-            }).catch((error) => {
-                guiLog("Scan request failed");
-                guiLog(error);
-            })
+            trigger_scan();
         }
     }, [files, state])
 
@@ -94,6 +87,12 @@ function App() {
         return true;
     }
 
+    async function trigger_scan() {
+        guiLog("Requesting a scan")
+        let result = await invoke("trigger_scan");
+        guiLog("finished requesting scan: " + result);
+    }
+
     async function generate_guid() {
         return await invoke("generate_guid");
     }
@@ -118,11 +117,12 @@ function App() {
     }
 
     const guiLog = (text) => {
+        console.log(text);
         outputMessage.current = [{
             msg: text,
             ts: new Date(Date.now()).toLocaleTimeString(),
         }, ...outputMessage.current];
-        setMessageCount(messageCount+1);
+        setMessageCount(outputMessage.current.length);
     }
 
     const handleFileChange = (event) => {
@@ -240,8 +240,8 @@ function App() {
                         </div>
                         <button className="interactable" disabled={state != s_selecting} type="submit">{(state == s_selecting ? "upload" : "yeehaw")}</button>
                     </form>
-                    <p>{outputMessage.current.map((message, index) => 
-                        <div className="logline" key={index}>{message.ts} : {message.msg}</div>)}</p>
+                    <div>{outputMessage.current.map((message, index) => 
+                        <div className="logline" key={index}>{message.ts} : {message.msg}</div>)}</div>
                 </main>
             </div>
         );

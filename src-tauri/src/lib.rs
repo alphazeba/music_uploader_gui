@@ -1,7 +1,8 @@
+mod uploader_client;
 use std::{env, fs::File, io::Read};
 
 use serde::Deserialize;
-use music_uploader_client::{MusicUploaderClientConfig, MusicUploaderClient};
+use uploader_client::{MusicUploaderClient, MusicUploaderClientConfig, MusicUploaderClientError};
 use tauri::{path::BaseDirectory, App, Manager, State};
 
 #[derive(Deserialize)]
@@ -17,10 +18,8 @@ fn upload_song(
     artist: &str,
     song: Song
 ) -> String {
-    match upload_song_inner(state, album, artist, song) {
-        Ok(x) => format!("Success: {}", x),
-        Err(e) => format!("Failure: {}", e),
-    }
+    result_to_string(
+        upload_song_inner(state, album, artist, song))
 }
 
 fn upload_song_inner(
@@ -28,14 +27,14 @@ fn upload_song_inner(
     album: &str,
     artist: &str,
     song: Song
-) -> Result<String, String> {
-    let run_state = state.run_state.as_ref().ok_or("program did not succesfully boot")?;
-    run_state.client.upload_song(
-        &album.to_string(), 
-        &artist.to_string(), 
-        &song.song_name, 
-        song.data
-    ).map_err(|e| format!("error: {}", e))
+) -> Result<String, MusicUploaderClientError> {
+    let run_state = state.run_state.as_ref().ok_or(MusicUploaderClientError::BadConfig("Client did not succesfully boot".to_string()))?;
+    run_state.client.send_song(
+        song.data,
+        &artist.to_string(),
+        &album.to_string(),
+        &song.song_name,
+    )
 }
 
 #[tauri::command]
@@ -54,13 +53,20 @@ fn get_valid_extensions(state: State<'_, GuiState>) -> Vec<String> {
 #[tauri::command]
 fn album_search(state: State<'_, GuiState>, album: String) -> Result<Vec<String>, String> {
     let run_state = state.run_state.as_ref().ok_or("program did not succesfully boot")?;
-    run_state.client.album_search(&album).map_err(|e| e.to_string())
+    run_state.client.album_search(&album).map(|response| response.albums).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn trigger_scan(state: State<'_, GuiState>) -> Result<(), String> {
-    let run_state = state.run_state.as_ref().ok_or("program did not succesfully boot")?;
-    run_state.client.trigger_scan().map_err(|e| e.to_string())
+fn trigger_scan(state: State<'_, GuiState>) -> String {
+    result_to_string(trigger_scan_inner(state))
+}
+
+fn trigger_scan_inner(state: State<'_, GuiState>) -> Result<String, MusicUploaderClientError> {
+    let run_state = state.run_state.as_ref().ok_or(MusicUploaderClientError::BadConfig("Client did not succesfully boot".to_string()))?;
+    println!("stargin trigger scan");
+    let result = run_state.client.trigger_scan();
+    println!("finished triggering scan: {:?}", result);
+    result
 }
 
 #[tauri::command]
@@ -85,6 +91,13 @@ fn get_startup_message(state: State<'_, GuiState>) -> String {
         }
     }
     message
+}
+
+fn result_to_string(result: Result<String, MusicUploaderClientError>) -> String {
+    match result {
+        Ok(x) => format!("Success: {}", x),
+        Err(e) => format!("Failure: {}", e),
+    }
 }
 
 struct GuiState {
@@ -152,7 +165,6 @@ fn get_config(settings: &Settings) -> MusicUploaderClientConfig {
     MusicUploaderClientConfig {
         user: settings.user.clone(),
         password: settings.password.clone(),
-        valid_extension: settings.valid_extensions.clone(),
         server_url: settings.server_url.clone(),
     }
 }

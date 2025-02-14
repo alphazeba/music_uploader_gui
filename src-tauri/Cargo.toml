@@ -20,8 +20,11 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
+thiserror = "2"
+reqwest = { version = "0.12", features = ["blocking"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-music_uploader_client = { path = "../../music_uploader_client" }
+music_uploader_server = { path = "../../music_uploader_server" }
 uuid = { version = "1.13.1", features = ["v4"] }
 toml = "0.8"
+sha256 = "1.5.0"
