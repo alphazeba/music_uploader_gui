@@ -1,4 +1,4 @@
-# Web uploader
+# Music Uploader Gui
 this is the front end for https://github.com/alphazeba/music_uploader_server.
 Easily allow drag and drop simplicity for uploading songs to a plex server.  No plex server access, permissions, ssh, command line. (Simplicity for gui users, plex server owner will still need to setup the music uploader server)
 
