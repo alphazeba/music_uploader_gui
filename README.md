@@ -9,7 +9,7 @@ inside the app you will find a Settings.toml file.
 Your server admin will need to provide you with a.
 - user="your username"
 - password="your password"
-- server_url="https://website.com/api" (url pointing to music_uploader_server)
+- server_url="https(://)example(.)com/api" (url pointing to music_uploader_server)
     - note: do NOT use a url that is insecure (http)
 
 # how to build
