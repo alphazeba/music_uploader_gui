@@ -119,6 +119,10 @@
   bottom: 0;
 }
 
+input[type='file'] {
+  opacity: 0;
+}
+
 ::file-selector-button {
   display: none;
 }

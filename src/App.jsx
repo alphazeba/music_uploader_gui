@@ -235,6 +235,7 @@ function App() {
                                     accept="audio/*"
                                     multiple
                                     key={clearCounter}
+                                    title=" "
                                 />
                             </div>
                         </div>
