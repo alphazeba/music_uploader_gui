@@ -12,17 +12,17 @@ struct Song {
 }
 
 #[tauri::command]
-fn upload_song(
+async fn upload_song(
     state: State<'_, GuiState>,
     album: &str,
     artist: &str,
     song: Song
-) -> String {
+) -> Result<String, String> {
     result_to_string(
-        upload_song_inner(state, album, artist, song))
+        upload_song_inner(state, album, artist, song).await)
 }
 
-fn upload_song_inner(
+async fn upload_song_inner(
     state: State<'_, GuiState>,
     album: &str,
     artist: &str,
@@ -34,7 +34,7 @@ fn upload_song_inner(
         &artist.to_string(),
         &album.to_string(),
         &song.song_name,
-    )
+    ).await
 }
 
 #[tauri::command]
@@ -51,52 +51,52 @@ fn get_valid_extensions(state: State<'_, GuiState>) -> Vec<String> {
 }
 
 #[tauri::command]
-fn album_search(state: State<'_, GuiState>, album: String) -> Result<Vec<String>, String> {
+async fn album_search(state: State<'_, GuiState>, album: String) -> Result<Vec<String>, String> {
     let run_state = state.run_state.as_ref().ok_or("program did not succesfully boot")?;
-    run_state.client.album_search(&album).map(|response| response.albums).map_err(|e| e.to_string())
+    run_state.client.album_search(&album).await.map(|response| response.albums).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn trigger_scan(state: State<'_, GuiState>) -> String {
-    result_to_string(trigger_scan_inner(state))
+async fn trigger_scan(state: State<'_, GuiState>) -> Result<String, String> {
+    result_to_string(trigger_scan_inner(state).await)
 }
 
-fn trigger_scan_inner(state: State<'_, GuiState>) -> Result<String, MusicUploaderClientError> {
+async fn trigger_scan_inner(state: State<'_, GuiState>) -> Result<String, MusicUploaderClientError> {
     let run_state = state.run_state.as_ref().ok_or(MusicUploaderClientError::BadConfig("Client did not succesfully boot".to_string()))?;
     println!("stargin trigger scan");
-    let result = run_state.client.trigger_scan();
+    let result = run_state.client.trigger_scan().await;
     println!("finished triggering scan: {:?}", result);
     result
 }
 
 #[tauri::command]
-fn get_startup_message(state: State<'_, GuiState>) -> String {
+async fn get_startup_message(state: State<'_, GuiState>) -> Result<String, String> {
     let mut message = state.startup_message.clone();
     if let Some(run_state) = state.run_state.as_ref() {
-        match run_state.client.check_conn() {
+        match run_state.client.check_conn().await {
             Ok(_) => {
                 message += "\nConnection is good";
             }
             Err(s) => {
                 message += &format!("\nCannot connect with {}: {}", run_state.settings.server_url, s);
             }
-        }
-        match run_state.client.check_auth() {
+        };
+        match run_state.client.check_auth().await {
             Ok(_) => {
                 message += &format!("\nAuthentication valid: hello {}", run_state.settings.user);
             }
             Err(s) => {
                 message += &format!("\nAuthentication unsuccesful: {}", s);
             }
-        }
+        };
     }
-    message
+    Ok(message)
 }
 
-fn result_to_string(result: Result<String, MusicUploaderClientError>) -> String {
+fn result_to_string(result: Result<String, MusicUploaderClientError>) -> Result<String, String> {
     match result {
-        Ok(x) => format!("Success: {}", x),
-        Err(e) => format!("Failure: {}", e),
+        Ok(x) => Ok(format!("Success: {}", x)),
+        Err(e) => Ok(format!("Failure: {}", e)),
     }
 }
 

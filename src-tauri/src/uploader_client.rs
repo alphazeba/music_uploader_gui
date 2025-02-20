@@ -1,5 +1,5 @@
 use music_uploader_server::model::{from_json, AlbumSearchResponse};
-use reqwest::blocking::{Client, RequestBuilder, Response};
+use reqwest::{Client, RequestBuilder, Response};
 use serde::Deserialize;
 use thiserror::Error;
 
@@ -22,18 +22,19 @@ impl MusicUploaderClient {
         }
     }
 
-    pub fn check_conn(&self) -> Result<String,MusicUploaderClientError> {
-        let result = self.client.get(self.build_url("conn")).send();
-        handle_string_response(result)
+    pub async fn check_conn(&self) -> Result<String,MusicUploaderClientError> {
+        let result = self.client.get(self.build_url("conn"))
+            .send().await;
+        handle_string_response(result).await
     }
     
-    pub fn check_auth(&self) -> Result<String,MusicUploaderClientError> {
+    pub async fn check_auth(&self) -> Result<String,MusicUploaderClientError> {
         let result = self.apply_auth(self.client.get(self.build_url("auth")))
-            .send();
-        handle_string_response(result)
+            .send().await;
+        handle_string_response(result).await
     }
     
-    pub fn send_song(
+    pub async fn send_song(
         &self,
         file: Vec<u8>,
         artist: &String,
@@ -46,22 +47,22 @@ impl MusicUploaderClient {
             .header("artist", artist)
             .header("hash", sha256::digest(&file))
             .body(file);
-        let result = self.apply_auth(request).send();
-        handle_string_response(result)
+        let result = self.apply_auth(request).send().await;
+        handle_string_response(result).await
     }
     
-    pub fn album_search(&self, album: &String) -> Result<AlbumSearchResponse, MusicUploaderClientError> {
+    pub async fn album_search(&self, album: &String) -> Result<AlbumSearchResponse, MusicUploaderClientError> {
         let request = self.client.get(self.build_url(&format!("albumsearch/{}", album)));
-        let result = self.apply_auth(request).send();
-        handle_response::<AlbumSearchResponse>(result)
+        let result = self.apply_auth(request).send().await;
+        handle_response::<AlbumSearchResponse>(result).await
     }
     
-    pub fn trigger_scan(
+    pub async fn trigger_scan(
         &self
     ) -> Result<String, MusicUploaderClientError> {
         let result=  self.apply_auth(self.client.post(self.build_url("triggerscan")))
-            .send();
-        handle_string_response(result)
+            .send().await;
+        handle_string_response(result).await
     }
 
     fn apply_auth(&self, request_builder: RequestBuilder) -> RequestBuilder {
@@ -87,18 +88,18 @@ pub enum MusicUploaderClientError {
     BadConfig(String),
 }
 
-fn handle_response<T: for<'a> Deserialize<'a>> (result: Result<Response, reqwest::Error>) -> Result<T, MusicUploaderClientError> {
-    handle_string_response(result).and_then(|s| 
+async fn handle_response<T: for<'a> Deserialize<'a>> (result: Result<Response, reqwest::Error>) -> Result<T, MusicUploaderClientError> {
+    handle_string_response(result).await.and_then(|s| 
         from_json::<T>(&s)
             .map_err(|e| MusicUploaderClientError::ParseServerResponseFailure(e.to_string())))
 }
 
-fn handle_string_response(result: Result<Response, reqwest::Error>) -> Result<String, MusicUploaderClientError> {
+async fn handle_string_response(result: Result<Response, reqwest::Error>) -> Result<String, MusicUploaderClientError> {
     match result {
         Ok(response) => {
             match response.status().is_success() {
-                true => Ok(get_body(response)),
-                false => Err(MusicUploaderClientError::UnhappyResponse(response.status().as_u16(), get_body(response))),
+                true => Ok(get_body(response).await),
+                false => Err(MusicUploaderClientError::UnhappyResponse(response.status().as_u16(), get_body(response).await)),
             }
         }
         Err(e) => {
@@ -109,6 +110,6 @@ fn handle_string_response(result: Result<Response, reqwest::Error>) -> Result<St
     }
 }
 
-fn get_body(response: Response) -> String {
-    response.text().unwrap_or_else(|_| "<no body>".to_string())
+async fn get_body(response: Response) -> String {
+    response.text().await.unwrap_or_else(|_| "<no body>".to_string())
 }
