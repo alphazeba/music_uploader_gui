@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from '@tauri-apps/api/event';
 import "./App.css";
 
 const s_selecting = 69;
@@ -16,11 +17,18 @@ function App() {
 
     // i want this to run just once
     useEffect(() => {
-        let fn = async () => {
-            let message = await invoke("get_startup_message");
-            guiLog(message);
-        }
-        fn();
+        const unlisten = listen('rust-log', (event) => {
+            guiLog(event.payload);
+        });
+        invoke("get_startup_message")
+            .then(message => guiLog(message))
+        return () => {
+            console.log("unlisten is attempted to be called");
+            unlisten.then(f => {
+                console.log("unlisten is actually being called");
+                f();
+            });
+        };
     }, []);
 
     useEffect(() => {

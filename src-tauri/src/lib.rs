@@ -1,9 +1,11 @@
 mod uploader_client;
-use std::{env, fs::File, io::Read};
+mod gui_logger;
 
+use gui_logger::GuiLogger;
+use std::{env, fs::File, io::Read};
 use serde::Deserialize;
 use uploader_client::{MusicUploaderClient, MusicUploaderClientConfig, MusicUploaderClientError};
-use tauri::{path::BaseDirectory, App, Manager, State};
+use tauri::{path::BaseDirectory, App, AppHandle, Manager, State};
 
 #[derive(Deserialize)]
 struct Song {
@@ -13,28 +15,34 @@ struct Song {
 
 #[tauri::command]
 async fn upload_song(
+    app: AppHandle,
     state: State<'_, GuiState>,
     album: &str,
     artist: &str,
     song: Song
 ) -> Result<String, String> {
     result_to_string(
-        upload_song_inner(state, album, artist, song).await)
+        upload_song_inner(app, state, album, artist, song).await)
 }
 
 async fn upload_song_inner(
+    app: AppHandle,
     state: State<'_, GuiState>,
     album: &str,
     artist: &str,
     song: Song
 ) -> Result<String, MusicUploaderClientError> {
-    let run_state = state.run_state.as_ref().ok_or(MusicUploaderClientError::BadConfig("Client did not succesfully boot".to_string()))?;
-    run_state.client.send_song(
+    let logger = GuiLogger::new(app);
+    logger.log("gui backend received file".to_string());
+    let run_state = state.run_state.as_ref()
+        .ok_or(MusicUploaderClientError::BadConfig("Client did not succesfully boot".to_string()))?;
+    let result = run_state.client.send_song(
         song.data,
         &artist.to_string(),
         &album.to_string(),
         &song.song_name,
-    ).await
+    ).await;
+    result
 }
 
 #[tauri::command]
@@ -53,7 +61,9 @@ fn get_valid_extensions(state: State<'_, GuiState>) -> Vec<String> {
 #[tauri::command]
 async fn album_search(state: State<'_, GuiState>, album: String) -> Result<Vec<String>, String> {
     let run_state = state.run_state.as_ref().ok_or("program did not succesfully boot")?;
-    run_state.client.album_search(&album).await.map(|response| response.albums).map_err(|e| e.to_string())
+    run_state.client.album_search(&album).await
+        .map(|response| response.albums)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -62,7 +72,8 @@ async fn trigger_scan(state: State<'_, GuiState>) -> Result<String, String> {
 }
 
 async fn trigger_scan_inner(state: State<'_, GuiState>) -> Result<String, MusicUploaderClientError> {
-    let run_state = state.run_state.as_ref().ok_or(MusicUploaderClientError::BadConfig("Client did not succesfully boot".to_string()))?;
+    let run_state = state.run_state.as_ref()
+        .ok_or(MusicUploaderClientError::BadConfig("Client did not succesfully boot".to_string()))?;
     println!("stargin trigger scan");
     let result = run_state.client.trigger_scan().await;
     println!("finished triggering scan: {:?}", result);
@@ -115,12 +126,13 @@ const SUCCESS_MESSAGE: &str = "Boot Success :)";
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
+            let logger = GuiLogger::new(app.handle().clone());
             let potential_settings = load_settings(app);
             let state = GuiState {
                 startup_message: potential_settings
                     .as_ref().err().map(String::to_string).unwrap_or(SUCCESS_MESSAGE.to_string()),
                 run_state: potential_settings.ok().map(|settings| RunState {
-                    client: MusicUploaderClient::new(get_config(&settings)),
+                    client: MusicUploaderClient::new(get_config(&settings), logger),
                     settings,
                 }),
             };

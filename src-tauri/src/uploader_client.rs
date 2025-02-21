@@ -3,6 +3,8 @@ use reqwest::{Client, RequestBuilder, Response};
 use serde::Deserialize;
 use thiserror::Error;
 
+use crate::gui_logger::GuiLogger;
+
 pub struct MusicUploaderClientConfig {
     pub user: String,
     pub password: String,
@@ -12,13 +14,15 @@ pub struct MusicUploaderClientConfig {
 pub struct MusicUploaderClient {
     config: MusicUploaderClientConfig,
     client: Client,
+    logger: GuiLogger,
 }
 
 impl MusicUploaderClient {
-    pub fn new(config: MusicUploaderClientConfig) -> Self {
+    pub fn new(config: MusicUploaderClientConfig, logger: GuiLogger) -> Self {
         MusicUploaderClient {
             config,
             client: Client::new(),
+            logger,
         }
     }
 
@@ -41,13 +45,18 @@ impl MusicUploaderClient {
         album: &String,
         song_file_name: &String
     ) -> Result<String, MusicUploaderClientError> {
+        self.log("hashing".to_string());
+        let song_hash = sha256::digest(&file);
+        self.log("building request".to_string());
         let request = self.client.post(self.build_url("upload"))
             .header("file", song_file_name)
             .header("album", album)
             .header("artist", artist)
-            .header("hash", sha256::digest(&file))
+            .header("hash", song_hash)
             .body(file);
+        self.log("sending request".to_string());
         let result = self.apply_auth(request).send().await;
+        self.log("received response".to_string());
         handle_string_response(result).await
     }
     
@@ -73,6 +82,10 @@ impl MusicUploaderClient {
 
     fn build_url(&self, route: &str) -> String {
         format!("{}/{}", self.config.server_url, route)
+    }
+
+    fn log(&self, text: String) {
+        self.logger.log(text);
     }
 }
 
