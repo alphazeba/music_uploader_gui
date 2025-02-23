@@ -1,3 +1,5 @@
+use std::{fmt::Debug, time::Duration};
+
 use music_uploader_server::model::{from_json, AlbumSearchResponse};
 use reqwest::{Client, RequestBuilder, Response};
 use serde::Deserialize;
@@ -19,9 +21,13 @@ pub struct MusicUploaderClient {
 
 impl MusicUploaderClient {
     pub fn new(config: MusicUploaderClientConfig, logger: GuiLogger) -> Self {
+        let client = Client::builder()
+            .timeout(Duration::from_secs(5 * 60))
+            .build().expect("i don't expect clietn building to fial");
+        println!("{:?}", client);
         MusicUploaderClient {
             config,
-            client: Client::new(),
+            client,
             logger,
         }
     }
