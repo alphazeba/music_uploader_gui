@@ -157,13 +157,13 @@ pub fn run() {
         .setup(|app| {
             let logger = GuiLogger::new(app.handle().clone());
             let potential_settings = load_settings(app);
+
             let state = GuiState {
-                startup_message: potential_settings
-                    .as_ref()
-                    .err()
-                    .map(String::to_string)
-                    .unwrap_or(SUCCESS_MESSAGE.to_string()),
-                run_state: potential_settings.ok().map(|settings| RunState {
+                startup_message: match &potential_settings {
+                    Ok((_, success_message)) => format!("{SUCCESS_MESSAGE}\n{success_message}"),
+                    Err(fail_message) => fail_message.clone(),
+                },
+                run_state: potential_settings.ok().map(|(settings, _)| RunState {
                     client: MusicUploaderClient::new(get_config(&settings), logger),
                     settings,
                 }),
@@ -184,11 +184,30 @@ pub fn run() {
         .expect("error while running tauri application");
 }
 
-fn load_settings(app: &App) -> Result<Settings, String> {
-    let settings_path = app
-        .path()
-        .resolve("Settings.toml", BaseDirectory::Resource)
+const SETTINGS_FILE_NAME: &str = "Settings.toml";
+
+// i dislike the current mechanism i have for passing messages to 
+fn load_settings(app: &App) -> Result<(Settings, String), String> {
+    let settings_path = app.path()
+        .resolve(SETTINGS_FILE_NAME, BaseDirectory::AppConfig)
         .map_err(|e| e.to_string())?;
+    let mut success_message = format!("looking for settings at ({:?})", &settings_path);
+    // create the settings directory and copy the default value over.
+    if !fs::exists(&settings_path).unwrap_or(false) {
+        let config_dir = app.path().app_config_dir().map_err(|e| format!("failed to get app config dir: {}", e))?;
+        fs::create_dir_all(&config_dir)
+            .map_err(|e| format!("failed to find ({:?}) so tried to create the directory ({:?}) to create it, but failed: {}",
+                &settings_path, &config_dir, e))?;
+        let example_settings_path = app.path()
+            .resolve(SETTINGS_FILE_NAME, BaseDirectory::Resource)
+            .map_err(|e| e.to_string())?;
+        let _ = fs::copy(&example_settings_path, &settings_path)
+            .map_err(|e| format!("failed to open settings ({:?}) so tried copying example settings over ({:?}), but failed: {}",
+                &settings_path,
+                &example_settings_path,
+                e))?;
+        success_message = format!("{success_message}\nHello, this looks like your first time using music uploader! You will need to configure your settings to talk to your server. Find settings here ({:?}) ", &settings_path);
+    }
     let settings_path_str = settings_path.to_str().unwrap_or("no settings path :/");
     let mut f = File::open(&settings_path).map_err(|_| {
         format!(
@@ -203,12 +222,14 @@ fn load_settings(app: &App) -> Result<Settings, String> {
             settings_path_str
         )
     })?;
-    toml::from_str::<Settings>(&file_text).map_err(|_| {
-        format!(
-            "Failed to parse contents of {}, probably typo",
-            settings_path_str
-        )
-    })
+    toml::from_str::<Settings>(&file_text)
+        .map(|x| (x, success_message))
+        .map_err(|_| {
+            format!(
+                "Failed to parse contents of {}, probably typo",
+                settings_path_str
+            )
+        })
 }
 
 #[derive(Deserialize)]
