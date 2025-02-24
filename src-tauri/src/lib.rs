@@ -7,6 +7,7 @@ use std::{
     env,
     fs::{self, File},
     io::Read,
+    path::Path,
 };
 use tauri::{path::BaseDirectory, App, AppHandle, Manager, State};
 use uploader_client::{MusicUploaderClient, MusicUploaderClientConfig, MusicUploaderClientError};
@@ -186,40 +187,41 @@ pub fn run() {
 
 const SETTINGS_FILE_NAME: &str = "Settings.toml";
 
-// i dislike the current mechanism i have for passing messages to 
+// i dislike the current mechanism i have for passing messages to the user
+// however, the gui listener for rust log events has not been added by the 
+// point that the tuari app is being configured.
 fn load_settings(app: &App) -> Result<(Settings, String), String> {
     let settings_path = app.path()
         .resolve(SETTINGS_FILE_NAME, BaseDirectory::AppConfig)
         .map_err(|e| e.to_string())?;
-    let mut success_message = format!("looking for settings at ({:?})", &settings_path);
-    // create the settings directory and copy the default value over.
+    let mut success_message = format!("looking for settings at ({})", path_string(&settings_path));
+    // likely first time running, create the settings directory and copy the default settings over.
     if !fs::exists(&settings_path).unwrap_or(false) {
         let config_dir = app.path().app_config_dir().map_err(|e| format!("failed to get app config dir: {}", e))?;
         fs::create_dir_all(&config_dir)
-            .map_err(|e| format!("failed to find ({:?}) so tried to create the directory ({:?}) to create it, but failed: {}",
-                &settings_path, &config_dir, e))?;
+            .map_err(|e| format!("failed to find ({}) so tried to create the directory ({}) to create it, but failed: {}",
+                path_string(&settings_path), path_string(&config_dir), e))?;
         let example_settings_path = app.path()
             .resolve(SETTINGS_FILE_NAME, BaseDirectory::Resource)
             .map_err(|e| e.to_string())?;
         let _ = fs::copy(&example_settings_path, &settings_path)
-            .map_err(|e| format!("failed to open settings ({:?}) so tried copying example settings over ({:?}), but failed: {}",
-                &settings_path,
-                &example_settings_path,
+            .map_err(|e| format!("failed to open settings ({}) so tried copying example settings over ({}), but failed: {}",
+                path_string(&settings_path),
+                path_string(&example_settings_path),
                 e))?;
         success_message = format!("{success_message}\nHello, this looks like your first time using music uploader! You will need to configure your settings to talk to your server. Find settings here ({:?}) ", &settings_path);
     }
-    let settings_path_str = settings_path.to_str().unwrap_or("no settings path :/");
     let mut f = File::open(&settings_path).map_err(|_| {
         format!(
             "Failed to find {}. Make sure it is present.",
-            settings_path_str
+            path_string(&settings_path)
         )
     })?;
     let mut file_text = String::new();
     let _ = f.read_to_string(&mut file_text).map_err(|_| {
         format!(
             "Failed to read contents of {}. idk what ths menas",
-            settings_path_str
+            path_string(&settings_path)
         )
     })?;
     toml::from_str::<Settings>(&file_text)
@@ -227,9 +229,13 @@ fn load_settings(app: &App) -> Result<(Settings, String), String> {
         .map_err(|_| {
             format!(
                 "Failed to parse contents of {}, probably typo",
-                settings_path_str
+                path_string(&settings_path)
             )
         })
+}
+
+fn path_string(path: &Path) -> String {
+    path.to_str().unwrap_or("<no path>").to_string()
 }
 
 #[derive(Deserialize)]
