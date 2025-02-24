@@ -14,12 +14,19 @@
       {
         "title": "Music Uploader",
         "width": 1280,
-        "height": 720,
-        "dragDropEnabled": false
+        "height": 720
       }
     ],
     "security": {
-      "csp": null
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": {
+          "allow": ["**"],
+          "deny": [],
+          "requireLiteralLeadingDot": false
+        }
+      }
     }
   },
   "bundle": {

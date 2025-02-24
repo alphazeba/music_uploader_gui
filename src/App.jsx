@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from '@tauri-apps/api/event';
+import { listen } from "@tauri-apps/api/event";
+import { open } from '@tauri-apps/plugin-dialog';
 import "./App.css";
 
 const s_selecting = 69;
@@ -14,20 +15,30 @@ function App() {
     const [artist, setArtist] = useState("");
     const [files, setFiles] = useState([]);
     const [clearCounter, setClearCounter] = useState(0);
+    const [filesHovering, setFilesHovering] = useState(false);
 
     // i want this to run just once
     useEffect(() => {
-        const unlisten = listen('rust-log', (event) => {
+        const unlistenBackEndLog = listen("music_uploader://log", (event) => {
             guiLog(event.payload);
         });
+        const unlistenFileDropHover = listen("tauri://drag-enter", (event) => {
+            setFilesHovering(true);
+        });
+        const unlistenFileDropCancel = listen("tauri://drag-leave", (event) => {
+            setFilesHovering(false);
+        });
+        const unlistenFileDrop = listen("tauri://drag-drop", (event) => {
+            setFilesHovering(false);
+            handleNewFilePaths(event.payload.paths);
+        });
         invoke("get_startup_message")
-            .then(message => guiLog(message))
+            .then(message => guiLog(message));
         return () => {
-            console.log("unlisten is attempted to be called");
-            unlisten.then(f => {
-                console.log("unlisten is actually being called");
-                f();
-            });
+            unlistenBackEndLog.then(f => f());
+            unlistenFileDropHover.then(f => f());
+            unlistenFileDropCancel.then(f => f());
+            unlistenFileDrop.then(f => f());
         };
     }, []);
 
@@ -63,7 +74,7 @@ function App() {
         for (let index in files) {
             let file = files[index];
             if (file.state == fs_uploaded) {
-                guiLog("skipping " + file.file.name + " as it was already uploaded");
+                guiLog("skipping " + file.name + " as it was already uploaded");
                 continue;
             }
             let song = await fileToSong(file);
@@ -109,18 +120,10 @@ function App() {
         return await invoke("get_valid_extensions");
     }
 
-    // async function album_search(album) {
-    //     guiLog("searching for " + album);
-    //     let result = await invoke("album_search", {album});
-    //     console.log("found the following albums: ", result);
-    //     result;
-    // }
-
     const fileToSong = async (fileState) => {
-        let buffer = await fileState.file.arrayBuffer();
         return {
-            song_name: fileState.file.name,
-            data: new Uint8Array(buffer),
+            song_name: fileState.name,
+            path: fileState.path,
         };
     }
 
@@ -133,55 +136,47 @@ function App() {
         setMessageCount(outputMessage.current.length);
     }
 
-    const handleFileChange = (event) => {
-        handleNewFiles(event.target.files);
-    };
-
-    const handleDrop = (event) => {
-        console.log("handling drop event");
-        event.preventDefault();
-        handleNewFiles(event.dataTransfer.files);
-    };
-
-    const handleNewFiles = async(incomingFiles) => {
+    const handleNewFilePaths = async(paths) => {
         const validExtensions = await get_valid_extensions();
-        if (incomingFiles && incomingFiles.length > 0) {
+        if (paths && paths.length > 0) {
             let newFiles = [];
-            for (let file of incomingFiles) {
-                if (!validExtensions.includes(getExtension(file.name))) {
-                    guiLog("skipping " + file.name + " because it does not have a valid extension");
+            for (let path of paths) {
+                if (!validExtensions.includes(getExtension(path))) {
+                    guiLog("skipping " + path + " because it does not have a valid extension");
                     continue;
                 }
-                newFiles.push(await fileToFileState(file));
+                newFiles.push(await pathToFilePathState(path));
             }
             setFiles((prevFiles) => [...prevFiles, ...newFiles]);
         }
     }
 
-    const getExtension = (filename) => {
-        return filename.split('.').pop();
-    }
-
     const fs_not_uploaded = 69;
     const fs_uploaded = 420;
     const fs_failed_upload = 333;
-    const fileToFileState = async (file) => {
+    const pathToFilePathState = async (path) => {
         return {
             id: await generate_guid(),
-            file: file,
+            name: getFileName(path),
+            path: path,
             state: fs_not_uploaded,
         }
     }
 
-    const handleSearchAlbum = () => {
-        album_search(album).then((result) => {
-            for (let item of result) {
-                guiLog(item);
-            }
-        })
-        .catch( e => {
-            guiLog(e);
+    const getExtension = (filename) => {
+        return filename.split(".").pop();
+    }
+
+    const getFileName = (path) => {
+        return path.split("\\").pop().split("/").pop();
+    }
+
+    const handleOpenFileSelector = async () => {
+        const paths = await open({
+            multiple: true,
+            directory: false,
         });
+        handleNewFilePaths(paths);
     }
 
     const renderMainPanel = () => {
@@ -225,26 +220,14 @@ function App() {
                             </span>
                         </div>
                         <div className="row buttspace dropzoneContainer">
-                            <div className="dropzone interactable item">
+                            <div
+                                className={"dropzone interactable item" + (filesHovering ? " dropzoneActive" : "")}
+                                onClick={handleOpenFileSelector}
+                            >
                                 <p>
                                 drop zone
                                 </p>
                                 <p className="fineprint">(or click to browse)</p>
-                                <input
-                                    className="fileInput"
-                                    type="file"
-                                    id="browse"
-                                    onChange={handleFileChange}
-                                    onDragOver={(event) => { 
-                                        console.log("dragover triggered");
-                                        event.stopPropagation();
-                                        event.preventDefault(); }}
-                                    onDrop={handleDrop}
-                                    accept="audio/*"
-                                    multiple
-                                    key={clearCounter}
-                                    title=" "
-                                />
                             </div>
                         </div>
                         <button className="interactable" disabled={state != s_selecting} type="submit">{(state == s_selecting ? "upload" : "yeehaw")}</button>
@@ -272,8 +255,8 @@ function App() {
                 <h3 className="songItem">files to upload</h3>
                 {(files.length == 0 ? <p>looks a bit empty</p> : <div/>)}
                 {files.map(f => 
-                    <div className="songItem" key={f.file.name}>
-                        {renderFileStatus(f.state)} {f.file.name}
+                    <div className="songItem" key={f.name}>
+                        {renderFileStatus(f.state)} {f.name}
                     </div>)}
                 <div className="clearButtonContainer">
                     <button className="clearButton interactable" onClick={onClear}>clear</button>
@@ -286,9 +269,9 @@ function App() {
         switch (status) {
             case fs_failed_upload: return "❌";
             case fs_not_uploaded: return "⚪️";
-            case fs_uploaded: return "👍";
-            default: "wtf is this state?";
+            case fs_uploaded: return "✅";
         }
+        return "error💀";
     }
     return (
         <div className="columnContainer">
