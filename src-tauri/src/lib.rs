@@ -19,43 +19,84 @@ struct Song {
 }
 
 #[tauri::command]
-async fn upload_song(
+async fn upload_album(
     app: AppHandle,
     state: State<'_, GuiState>,
-    album: &str,
+    album_name: &str,
+    album_id: &str,
     artist: &str,
-    song: Song,
+    songs: Vec<Song>,
 ) -> Result<String, String> {
-    result_to_string(upload_song_inner(app, state, album, artist, song).await)
+    result_to_string(upload_album_inner(app, state, album_name, album_id, artist, songs).await)
 }
 
-async fn upload_song_inner(
+async fn upload_album_inner(
     app: AppHandle,
     state: State<'_, GuiState>,
-    album: &str,
+    album_name: &str,
+    album_id: &str,
     artist: &str,
-    song: Song,
+    songs: Vec<Song>,
 ) -> Result<String, MusicUploaderClientError> {
     let logger = GuiLogger::new(app);
-    logger.log("gui backend received file".to_string());
+    let album_id = album_id.to_string();
+    let album_name = album_name.to_string();
+    let artist = artist.to_string();
+    logger.log("gui backend received album upload request".to_string());
+    logger.album_is_uploading(&album_id);
     let run_state = state
         .run_state
         .as_ref()
         .ok_or(MusicUploaderClientError::BadConfig(
             "Client did not succesfully boot".to_string(),
         ))?;
+    let mut results: Vec<Result<String, MusicUploaderClientError>> = Vec::new();
+    for song in songs.iter() {
+        logger.file_is_uploading(&album_id, &song.path);
+        let result = send_song(run_state, &album_name, &artist, song).await;
+        logger.file_report(
+            &album_id,
+            &song.path,
+            result.is_ok(),
+            match &result {
+                Ok(message) => message.to_string(),
+                Err(e) => e.to_string()
+            });
+        results.push(result);
+    }
+    let total_result = get_album_upload_result(results);
+    logger.album_report(&album_id, total_result.is_ok(), match &total_result {
+        Ok(message) => message.to_string(),
+        Err(e) => e.to_string(),
+    });
+    total_result?;
+    trigger_scan_inner(state).await
+}
+
+async fn send_song(run_state: &RunState, album: &String, artist: &String, song: &Song) -> Result<String, MusicUploaderClientError> {
     let data = fs::read(&song.path)
-        .map_err(|e| MusicUploaderClientError::FileReadError(song.path, Box::new(e)))?;
+        .map_err(|e| MusicUploaderClientError::FileReadError(song.path.to_string(), Box::new(e)))?;
     let result = run_state
         .client
         .send_song(
             data,
-            &artist.to_string(),
-            &album.to_string(),
+            &artist,
+            &album,
             &song.song_name,
-        )
-        .await;
+        ).await;
+    // send report to the gui.
     result
+}
+
+fn get_album_upload_result(upload_results: Vec<Result<String, MusicUploaderClientError>>) -> Result<String, MusicUploaderClientError> {
+    for result in upload_results {
+        match result {
+            Ok(_) => continue,
+            // i do not log error because i am assuming that a file report was generated for this file already.
+            Err(_) => return Err(MusicUploaderClientError::AlbumUploadFailure("At least one song failed to upload".to_string())),
+        }
+    }
+    Ok("All files in album uploaded succesfully".to_string())
 }
 
 #[tauri::command]
@@ -84,11 +125,6 @@ async fn album_search(state: State<'_, GuiState>, album: String) -> Result<Vec<S
         .await
         .map(|response| response.albums)
         .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-async fn trigger_scan(state: State<'_, GuiState>) -> Result<String, String> {
-    result_to_string(trigger_scan_inner(state).await)
 }
 
 async fn trigger_scan_inner(
@@ -174,12 +210,11 @@ pub fn run() {
         })
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
-            upload_song,
+            upload_album,
             generate_guid,
             get_valid_extensions,
             get_startup_message,
             album_search,
-            trigger_scan,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

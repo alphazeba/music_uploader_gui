@@ -48,6 +48,9 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-text-size-adjust: 100%;
+
+  --secondary-color: #0f0f0f98;
+  --secondary-highlight: rgba(255,255,255,0.25);
 }
 
 .container {
@@ -98,11 +101,11 @@
 }
 
 .interactable:hover {
-  background-color: rgba(255,255,255,0.25);
+  background-color: var(--secondary-highlight);
 }
 
 .dropzoneActive {
-  background-color: rgba(255,255,255,0.25) !important;
+  background-color: var(--secondary-highlight) !important;
   outline-offset: 0.5em;
 }
 
@@ -132,9 +135,14 @@ input[type='file'] {
   display: none;
 }
 
+.uploadForm {
+  margin-bottom: 0.25em;
+}
+
 .songItem {
   padding: 10px;
   border-bottom: 1px black solid;
+  text-align: left;
 }
 
 a {
@@ -182,9 +190,20 @@ button:active {
   color: gray;
 }
 
+.logSection {
+  border-top: 1px black solid;
+}
+
 .logline {
   width: 100%;
   text-align: left;
+}
+
+.logTs {
+  background-color: var(--secondary-color);
+  color: gray;
+  padding-left: 0.2em;
+  padding-right: 0.2em;
 }
 
 input,
@@ -215,3 +234,35 @@ button:active {
   background-color: #0f0f0f69;
 }
 
+.version {
+  position: absolute;
+  right: 0;
+  top: 0;
+  color: #777676;
+  pointer-events: none;
+}
+
+.uploaderTabContainer {
+  width: 100%;
+  border-bottom: 1px black solid;
+  text-align: left;
+  user-select: none;
+  -webkit-user-select: none;
+  -ms-user-select: none;
+}
+
+.uploaderTab {
+  border-right: 1px black solid;
+  padding-left: 0.25em;
+  padding-right: 0.25em;
+  cursor: pointer;
+}
+
+.uploaderTab:hover,
+.uploaderTab.selected {
+  background-color: var(--secondary-highlight);
+}
+
+.uploaderTabExit:hover {
+  color: red;
+}

@@ -112,6 +112,8 @@ pub enum MusicUploaderClientError {
     BadConfig(String),
     #[error("Failed to read the file {0} because: {1}")]
     FileReadError(String, Box<io::Error>),
+    #[error("Failed to upload album: {0}")]
+    AlbumUploadFailure(String),
 }
 
 async fn handle_response<T: for<'a> Deserialize<'a>>(
