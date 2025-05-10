@@ -1,11 +1,12 @@
 import "./App.css";
 import { useState, useEffect } from "react";
 import { getVersion } from "@tauri-apps/api/app";
-import { invoke } from "@tauri-apps/api/core";
 import { useMessageState } from "./state/messageState";
 import { PAGE_SETTINGS, PAGE_UPLOADER, usePageState } from "./state/pageState";
 import { Uploader } from "./pages/uploader";
 import { useUploaderState } from "./state/uploaderState";
+import { Settings } from "./pages/settings";
+import { get_startup_message, run_settings_checks } from "./backendApi";
 
 function App() {
     const messageState = useMessageState();
@@ -17,8 +18,10 @@ function App() {
     useEffect(() => {
         getVersion()
             .then(version => setAppVersion(version));
-        invoke("get_startup_message")
+        get_startup_message()
             .then(message => messageState.guiLog(message));
+        run_settings_checks()
+            .then(result => messageState.guiLog(result));
         return () => {};
     }, []);
 
@@ -27,9 +30,13 @@ function App() {
             case PAGE_UPLOADER:
                 return <Uploader
                     uploaderState={uploaderState}
+                    pageState={pageState}
                 />;
             case PAGE_SETTINGS:
-                return <div>settings</div>;
+                return <Settings
+                    guiLog={messageState.guiLog}
+                    pageState={pageState}
+                />;
         }
     }
 

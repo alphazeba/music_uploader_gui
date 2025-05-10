@@ -1,7 +1,7 @@
 [package]
 name = "music_uploader_gui"
 version = "0.1.0"
-description = "A Tauri App"
+description = "https://github.com/alphazeba/music_uploader_gui"
 authors = ["alphazeba"]
 edition = "2021"
 

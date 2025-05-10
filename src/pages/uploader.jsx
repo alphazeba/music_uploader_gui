@@ -3,7 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { open } from '@tauri-apps/plugin-dialog';
 import { fs_failed_upload, fs_not_uploaded, fs_uploaded, fs_uploading, s_in_queue, s_selecting, s_upload_fail, s_upload_success, s_uploading } from "../state/uploaderState";
 
-export function Uploader({uploaderState}) {
+export function Uploader({uploaderState, pageState}) {
     const [filesHovering, setFilesHovering] = useState(false);
 
     useEffect(() => {
@@ -64,6 +64,7 @@ export function Uploader({uploaderState}) {
                 <main className="container">
                     <h1 className="title"><img className="logo logoLeft" src="cloud.svg"/> Music Uploader <img className="logo logoRight" src="cloud.svg"/></h1>
                     <p>Put your music all the way into me.</p>
+                    <div className='settingsButton' onClick={pageState.goToSettings}>⚙️</div>
                     <form
                         className="uploadForm"
                         onSubmit={(e) => {
@@ -165,7 +166,8 @@ export function Uploader({uploaderState}) {
             className="uploaderTabExit"
             onClick={(e) => {
                 e.stopPropagation();
-                uploaderState.closeAlbumId(albumId)}}
+                uploaderState.closeAlbumId(albumId)
+            }}
         >🆇</span>;
     }
 

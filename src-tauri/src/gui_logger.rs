@@ -25,10 +25,13 @@ impl GuiLogger {
             message: message.to_string(),
         };
         let _ = match serde_json::to_string(&file_report) {
-            Ok(json) => self.app.emit("music_uploader://file_report", json).map_err(|e| {
-                println!("GuiLogger.file_report failed for: {}", e);
-                ()
-            }),
+            Ok(json) => self
+                .app
+                .emit("music_uploader://file_report", json)
+                .map_err(|e| {
+                    println!("GuiLogger.file_report failed for: {}", e);
+                    ()
+                }),
             Err(e) => Ok(self.log(e.to_string())),
         };
     }
@@ -40,19 +43,25 @@ impl GuiLogger {
             message: message.to_string(),
         };
         let _ = match serde_json::to_string(&file_report) {
-            Ok(json) => self.app.emit("music_uploader://album_report", json).map_err(|e| {
-                println!("GuiLogger.album_report failed for: {}", e);
-                ()
-            }),
+            Ok(json) => self
+                .app
+                .emit("music_uploader://album_report", json)
+                .map_err(|e| {
+                    println!("GuiLogger.album_report failed for: {}", e);
+                    ()
+                }),
             Err(e) => Ok(self.log(e.to_string())),
         };
     }
 
     pub fn album_is_uploading(&self, album_id: &String) {
-        let _ = self.app.emit("music_uploader://album_is_uploading", album_id.to_string()).map_err(|e| {
-            println!("GuiLogger.album_is_uploading failed for: {}", e);
-            ()
-        });
+        let _ = self
+            .app
+            .emit("music_uploader://album_is_uploading", album_id.to_string())
+            .map_err(|e| {
+                println!("GuiLogger.album_is_uploading failed for: {}", e);
+                ()
+            });
     }
 
     pub fn file_is_uploading(&self, album_id: &String, file: &String) {
@@ -61,10 +70,13 @@ impl GuiLogger {
             file: file.to_string(),
         };
         let _ = match serde_json::to_string(&file_is_uploading_payload) {
-            Ok(json) => self.app.emit("music_uploader://file_is_uploading", json).map_err(|e| {
-                println!("GuiLogger.file_is_uploading failed for: {}", e);
-                ()
-            }),
+            Ok(json) => self
+                .app
+                .emit("music_uploader://file_is_uploading", json)
+                .map_err(|e| {
+                    println!("GuiLogger.file_is_uploading failed for: {}", e);
+                    ()
+                }),
             Err(e) => Ok(self.log(e.to_string())),
         };
     }

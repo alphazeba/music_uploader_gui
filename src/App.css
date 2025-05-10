@@ -266,3 +266,23 @@ button:active {
 .uploaderTabExit:hover {
   color: red;
 }
+
+.settingsButton {
+  position: absolute;
+  top: 0;
+  right: 0;
+  font-size: 2em;
+  cursor: pointer;
+  padding: 0.5em;
+}
+
+.settingsLabel {
+  margin-right: 0.5em;
+  width: 5em;
+  display: inline-block;
+  text-align: right;
+}
+
+.settingsTabBar {
+  color: transparent;
+}

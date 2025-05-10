@@ -231,18 +231,6 @@ export function useUploaderState(guiLog) {
         return path.split("\\").pop().split("/").pop();
     }
 
-    function allFilesSuccessfullyUploaded() {
-        if (files.length == 0) {
-            return false;
-        }
-        for (let file of files) {
-            if (file.state !== fs_uploaded) {
-                return false;
-            }
-        }
-        return true;
-    }
-
     function selectAlbumId(albumId) {
         setSelectedAlbumKey(albumId);
     }
@@ -250,6 +238,7 @@ export function useUploaderState(guiLog) {
     function closeAlbumId(albumId) {
         let album = albums[albumId];
         if (album.state == s_in_queue || album.state == s_uploading) {
+            guiLog("Cannot close album, it is uploading");
             return;
         }
         setAlbums(prevAlbums => {
