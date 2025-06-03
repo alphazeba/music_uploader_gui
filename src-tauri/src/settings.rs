@@ -1,10 +1,13 @@
-use std::{fs::{self, File}, io::{Read, Write}, path::{Path, PathBuf}};
+use std::{
+    fs::{self, File},
+    io::{Read, Write},
+    path::{Path, PathBuf},
+};
 
 use serde::{Deserialize, Serialize};
 use tauri::{path::BaseDirectory, AppHandle, Manager};
 
 use crate::uploader_client::MusicUploaderClientConfig;
-
 
 const SETTINGS_FILE_NAME: &str = "Settings.toml";
 
@@ -41,12 +44,15 @@ impl Settings {
 
     pub fn save_settings(&self, app: &AppHandle) -> Result<String, String> {
         let settings_path = get_settings_path(app)?;
-        let stringified_settings = toml::to_string(self)
+        let stringified_settings = toml::to_string(self).map_err(|e| e.to_string())?;
+        let mut f = File::create(&settings_path).map_err(|e| e.to_string())?;
+        let () = f
+            .write_all(stringified_settings.as_bytes())
             .map_err(|e| e.to_string())?;
-        let mut f = File::create(&settings_path)
-            .map_err(|e| e.to_string())?;
-        let () = f.write_all(stringified_settings.as_bytes()).map_err(|e| e.to_string())?;
-        Ok(format!("Succesfully wrote settings to {}", path_string(&settings_path)))
+        Ok(format!(
+            "Succesfully wrote settings to {}",
+            path_string(&settings_path)
+        ))
     }
 }
 
@@ -102,7 +108,10 @@ pub fn load_settings(app: &AppHandle) -> Result<LoadSettingsResult, String> {
         )
     })?;
     toml::from_str::<Settings>(&file_text)
-        .map(|x| LoadSettingsResult{ settings: x, startup_message: success_message})
+        .map(|x| LoadSettingsResult {
+            settings: x,
+            startup_message: success_message,
+        })
         .map_err(|_| {
             format!(
                 "Failed to parse contents of {}, probably typo",
@@ -111,10 +120,8 @@ pub fn load_settings(app: &AppHandle) -> Result<LoadSettingsResult, String> {
         })
 }
 
-
 fn get_settings_path(app: &AppHandle) -> Result<PathBuf, String> {
-    app
-        .path()
+    app.path()
         .resolve(SETTINGS_FILE_NAME, BaseDirectory::AppConfig)
         .map_err(|e| e.to_string())
 }

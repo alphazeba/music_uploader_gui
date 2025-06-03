@@ -41,3 +41,9 @@ export async function save_settings(user, password, url) {
         url,
     });
 }
+
+export async function album_search(album) {
+    return await invoke("album_search", {
+        album,
+    });
+}

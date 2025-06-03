@@ -1,14 +1,12 @@
 mod gui_logger;
-mod uploader_client;
 mod settings;
+mod uploader_client;
 
 use gui_logger::GuiLogger;
+use music_uploader_server::model::AlbumSearchResponse;
 use serde::{Deserialize, Serialize};
 use settings::{load_settings, Settings, UserEditableSettings};
-use std::{
-    env,
-    fs, sync::RwLock,
-};
+use std::{env, fs, sync::RwLock};
 use tauri::{AppHandle, Manager, State};
 use uploader_client::{MusicUploaderClient, MusicUploaderClientConfig, MusicUploaderClientError};
 
@@ -88,7 +86,13 @@ async fn send_song(
         .map_err(|e| MusicUploaderClientError::FileReadError(song.path.to_string(), Box::new(e)))?;
     let result = run_state
         .client
-        .send_song(&run_state.get_config(), data, &artist, &album, &song.song_name)
+        .send_song(
+            &run_state.get_config(),
+            data,
+            &artist,
+            &album,
+            &song.song_name,
+        )
         .await;
     // send report to the gui.
     result
@@ -159,10 +163,7 @@ async fn run_settings_checks(state: State<'_, GuiState>) -> Result<String, Strin
                 logger.log("Connection is good".to_string());
             }
             Err(s) => {
-                logger.log(format!(
-                    "Cannot connect with {}: {}",
-                    server_url, s
-                ));
+                logger.log(format!("Cannot connect with {}: {}", server_url, s));
             }
         };
         match run_state.client.check_auth(&config).await {
@@ -211,29 +212,40 @@ impl GetSettingsResult {
     }
 
     pub fn fail() -> Self {
-        GetSettingsResult { settings: None, success: false }
+        GetSettingsResult {
+            settings: None,
+            success: false,
+        }
     }
 }
 
 #[tauri::command]
 fn get_settings(state: State<'_, GuiState>) -> GetSettingsResult {
     match state.run_state.as_ref() {
-        Some(run_state) =>  GetSettingsResult::success(run_state.settings
-            .read()
-            .unwrap()
-            .get_user_editable_settings()),
+        Some(run_state) => GetSettingsResult::success(
+            run_state
+                .settings
+                .read()
+                .unwrap()
+                .get_user_editable_settings(),
+        ),
         None => GetSettingsResult::fail(),
     }
 }
 
 #[tauri::command]
-fn save_settings(state: State<'_, GuiState>, user: String, password: String, url: String) -> Result<String, String> {
+fn save_settings(
+    state: State<'_, GuiState>,
+    user: String,
+    password: String,
+    url: String,
+) -> Result<String, String> {
     match state.run_state.as_ref() {
         Some(run_state) => {
             let incoming_settings = UserEditableSettings {
                 user,
                 password,
-                server_url: url
+                server_url: url,
             };
             let to_save = {
                 let mut settings = run_state.settings.write().unwrap();
@@ -246,10 +258,37 @@ fn save_settings(state: State<'_, GuiState>, user: String, password: String, url
     }
 }
 
+#[tauri::command]
+async fn album_search(
+    state: State<'_, GuiState>,
+    album: String,
+) -> Result<AlbumSearchResponse, String> {
+    album_search_inner(state, album)
+        .await
+        .map_err(|e| format!("Failure: {}", e))
+}
+
+async fn album_search_inner(
+    state: State<'_, GuiState>,
+    album: String,
+) -> Result<AlbumSearchResponse, MusicUploaderClientError> {
+    // run query to server
+    let run_state = state
+        .run_state
+        .as_ref()
+        .ok_or(MusicUploaderClientError::BadConfig(
+            "Client did not succesfully boot".to_string(),
+        ))?;
+    run_state
+        .client
+        .album_search(&run_state.get_config(), album)
+        .await
+}
+
 fn result_to_string(result: Result<String, MusicUploaderClientError>) -> Result<String, String> {
     match result {
         Ok(x) => Ok(format!("Success: {}", x)),
-        Err(e) => Ok(format!("Failure: {}", e)),
+        Err(e) => Err(format!("Failure: {}", e)), // this was an ok, not sure if on purpose
     }
 }
 struct GuiState {
@@ -279,13 +318,18 @@ pub fn run() {
             let potential_settings = load_settings(app.handle());
             let state = GuiState {
                 startup_message: match &potential_settings {
-                    Ok(load_settings_result) => format!("{}\n{}", SUCCESS_MESSAGE, load_settings_result.startup_message),
+                    Ok(load_settings_result) => format!(
+                        "{}\n{}",
+                        SUCCESS_MESSAGE, load_settings_result.startup_message
+                    ),
                     Err(fail_message) => fail_message.clone(),
                 },
-                run_state: potential_settings.ok().map(|load_settings_result| RunState {
-                    client: MusicUploaderClient::new(logger),
-                    settings: RwLock::new(load_settings_result.settings),
-                }),
+                run_state: potential_settings
+                    .ok()
+                    .map(|load_settings_result| RunState {
+                        client: MusicUploaderClient::new(logger),
+                        settings: RwLock::new(load_settings_result.settings),
+                    }),
                 app_handle: app.handle().clone(),
             };
             app.manage(state);
@@ -301,8 +345,8 @@ pub fn run() {
             reload_settings,
             get_settings,
             save_settings,
+            album_search,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
-

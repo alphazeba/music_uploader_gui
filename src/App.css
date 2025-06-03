@@ -286,3 +286,21 @@ button:active {
 .settingsTabBar {
   color: transparent;
 }
+
+.pageChooser {
+  position: absolute;
+  top: 0;
+  right: 0;
+  font-size: 1em;
+}
+
+.pageChooserButton {
+  padding: 0.5em;
+  cursor: pointer;
+  float: left;
+}
+
+.pageChooserButton.selected {
+  transform: translateY(-0.25em);
+  text-shadow: 0 0.25em 1px black;
+}

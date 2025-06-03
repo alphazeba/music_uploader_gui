@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { get_settings, reload_settings, run_settings_checks, save_settings } from "../backendApi"
+import { get_settings, run_settings_checks, save_settings } from "../backendApi"
+import { PageChooser } from "../bits/pageChooser";
 
 export function Settings({guiLog, pageState}) {
     const [user, setUser] = useState("");
@@ -21,25 +22,21 @@ export function Settings({guiLog, pageState}) {
         setUrl(settings.server_url);
     }
 
-    const handleReloadSettings = () => {
-        reload_settings()
-            .then(result => {
-                guiLog(result);
-                loadSettings();
-            });
-    }
-
     const handleSave = () => {
         save_settings(user, password, url)
             .then(result => {
                 guiLog(result);
-                loadSettings();
+                validateAndLoadSettings();
             });
     }
 
-    const loadSettings = () => {
+    const validateAndLoadSettings = () => {
         run_settings_checks()
             .then(result => guiLog(result));
+        loadSettings();
+    }
+
+    const loadSettings = () => {
         get_settings()
             .then(result => handleGetSettingsResult(result));
     }
@@ -49,9 +46,7 @@ export function Settings({guiLog, pageState}) {
         <div className="container">
             <h1 className="title">Settings</h1>
             <p>...</p>
-            <div className="settingsButton" onClick={pageState.goToUploader}>
-                ❌
-            </div>
+            <PageChooser pageState={pageState} />
             <form
                 onSubmit={(e) => {
                     e.preventDefault();

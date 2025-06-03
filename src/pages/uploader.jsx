@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { open } from '@tauri-apps/plugin-dialog';
 import { fs_failed_upload, fs_not_uploaded, fs_uploaded, fs_uploading, s_in_queue, s_selecting, s_upload_fail, s_upload_success, s_uploading } from "../state/uploaderState";
+import { PageChooser } from "../bits/pageChooser";
 
 export function Uploader({uploaderState, pageState}) {
     const [filesHovering, setFilesHovering] = useState(false);
@@ -64,7 +65,7 @@ export function Uploader({uploaderState, pageState}) {
                 <main className="container">
                     <h1 className="title"><img className="logo logoLeft" src="cloud.svg"/> Music Uploader <img className="logo logoRight" src="cloud.svg"/></h1>
                     <p>Put your music all the way into me.</p>
-                    <div className='settingsButton' onClick={pageState.goToSettings}>⚙️</div>
+                    <PageChooser pageState={pageState} />
                     <form
                         className="uploadForm"
                         onSubmit={(e) => {

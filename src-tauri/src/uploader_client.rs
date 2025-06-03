@@ -1,6 +1,8 @@
 use std::{fmt::Debug, io, time::Duration};
 
+use music_uploader_server::model::{from_json, AlbumSearchResponse};
 use reqwest::{Client, RequestBuilder, Response};
+use serde::Deserialize;
 use thiserror::Error;
 
 use crate::gui_logger::GuiLogger;
@@ -33,18 +35,21 @@ impl MusicUploaderClient {
             .build()
             .expect("i don't expect client building to fail");
         println!("{:?}", client);
-        MusicUploaderClient {
-            client,
-            logger,
-        }
+        MusicUploaderClient { client, logger }
     }
 
-    pub async fn check_conn(&self, config: &MusicUploaderClientConfig) -> Result<String, MusicUploaderClientError> {
+    pub async fn check_conn(
+        &self,
+        config: &MusicUploaderClientConfig,
+    ) -> Result<String, MusicUploaderClientError> {
         let result = self.client.get(config.build_url("conn")).send().await;
         handle_string_response(result).await
     }
 
-    pub async fn check_auth(&self, config: &MusicUploaderClientConfig) -> Result<String, MusicUploaderClientError> {
+    pub async fn check_auth(
+        &self,
+        config: &MusicUploaderClientConfig,
+    ) -> Result<String, MusicUploaderClientError> {
         let result = config
             .apply_auth(self.client.get(config.build_url("auth")))
             .send()
@@ -75,13 +80,31 @@ impl MusicUploaderClient {
         handle_string_response(result).await
     }
 
-    pub async fn trigger_scan(&self, config: &MusicUploaderClientConfig) -> Result<String, MusicUploaderClientError> {
+    pub async fn trigger_scan(
+        &self,
+        config: &MusicUploaderClientConfig,
+    ) -> Result<String, MusicUploaderClientError> {
         let result = config
-            .apply_auth(
-                self.client.post(config.build_url("triggerscan")))
+            .apply_auth(self.client.post(config.build_url("triggerscan")))
             .send()
             .await;
         handle_string_response(result).await
+    }
+
+    pub async fn album_search(
+        &self,
+        config: &MusicUploaderClientConfig,
+        album: String,
+    ) -> Result<AlbumSearchResponse, MusicUploaderClientError> {
+        let result = config
+            .apply_auth(
+                self.client
+                    .get(config.build_url("albumsearch"))
+                    .header("album", album),
+            )
+            .send()
+            .await;
+        handle_response::<AlbumSearchResponse>(result).await
     }
 
     fn log(&self, text: String) {
@@ -101,6 +124,17 @@ pub enum MusicUploaderClientError {
     FileReadError(String, Box<io::Error>),
     #[error("Failed to upload album: {0}")]
     AlbumUploadFailure(String),
+    #[error("Failed to parse server response: {0}")]
+    ParseServerResponseFailure(String),
+}
+
+async fn handle_response<T: for<'a> Deserialize<'a>>(
+    result: Result<Response, reqwest::Error>,
+) -> Result<T, MusicUploaderClientError> {
+    handle_string_response(result).await.and_then(|s| {
+        from_json::<T>(&s)
+            .map_err(|e| MusicUploaderClientError::ParseServerResponseFailure(e.to_string()))
+    })
 }
 
 async fn handle_string_response(
