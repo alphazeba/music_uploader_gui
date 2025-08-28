@@ -19,6 +19,7 @@ pub async fn upload_song(
 }
 
 const MEGABYTE_BYTES: usize = 1_000_000;
+// const KILOBYTE_BYTES: usize = 1_000;
 const DEFAULT_PART_SIZE: u32 = MEGABYTE_BYTES as u32;
 const MAX_MULTIPART_UPLOAD_ATTEMPT: u8 = 2;
 
@@ -73,8 +74,13 @@ impl<'a> UploadState<'a> {
     async fn send_song_in_parts(self) -> Result<String, MusicUploaderClientError> {
         self.logger.log("Starting multipart upload".to_string());
         let hash = sha256::digest(&self.data);
+        let declared_size_bytes = self.data.len() as u32;
         for attempt in 0..MAX_MULTIPART_UPLOAD_ATTEMPT {
-            let response = self.declare_upload(&hash, DEFAULT_PART_SIZE).await?;
+            let response = self.declare_upload(
+                &hash, 
+                DEFAULT_PART_SIZE,
+                declared_size_bytes,
+            ).await?;
             let DeclareUploadResponse::Incomplete {
                 key,
                 declared_size: _,
@@ -128,7 +134,8 @@ impl<'a> UploadState<'a> {
     async fn declare_upload(
         &self,
         hash: &String,
-        part_size: u32,
+        part_size_bytes: u32,
+        declared_size_bytes: u32,
     ) -> Result<DeclareUploadResponse, MusicUploaderClientError> {
         self.run_state
             .client
@@ -138,7 +145,8 @@ impl<'a> UploadState<'a> {
                 self.artist,
                 self.album,
                 &self.song.song_name,
-                part_size,
+                part_size_bytes,
+                declared_size_bytes,
             )
             .await
     }

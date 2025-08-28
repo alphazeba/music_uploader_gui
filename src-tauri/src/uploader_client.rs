@@ -115,6 +115,7 @@ impl MusicUploaderClient {
         album: &String,
         song_file_name: &String,
         part_size_bytes: u32,
+        declared_size_bytes: u32,
     ) -> Result<DeclareUploadResponse, MusicUploaderClientError> {
         let result = config
             .apply_auth(
@@ -124,7 +125,8 @@ impl MusicUploaderClient {
                     .header("file", song_file_name)
                     .header("album", album)
                     .header("artist", artist)
-                    .header("part_size", part_size_bytes),
+                    .header("part_size", part_size_bytes)
+                    .header("declared_size", declared_size_bytes)
             )
             .send()
             .await;
