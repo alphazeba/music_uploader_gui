@@ -1,12 +1,15 @@
-mod gui_logger;
-mod settings;
-mod uploader_client;
+mod actions;
+pub(crate) mod gui_logger;
+pub(crate) mod settings;
+pub(crate) mod uploader_client;
+
+use crate::actions::upload_album::upload_album;
 
 use gui_logger::GuiLogger;
 use music_uploader_server::model::AlbumSearchResponse;
 use serde::{Deserialize, Serialize};
 use settings::{load_settings, Settings, UserEditableSettings};
-use std::{env, fs, sync::RwLock};
+use std::{env, sync::RwLock};
 use tauri::{AppHandle, Manager, State};
 use uploader_client::{MusicUploaderClient, MusicUploaderClientConfig, MusicUploaderClientError};
 
@@ -14,105 +17,6 @@ use uploader_client::{MusicUploaderClient, MusicUploaderClientConfig, MusicUploa
 struct Song {
     song_name: String,
     path: String,
-}
-
-#[tauri::command]
-async fn upload_album(
-    app: AppHandle,
-    state: State<'_, GuiState>,
-    album_name: &str,
-    album_id: &str,
-    artist: &str,
-    songs: Vec<Song>,
-) -> Result<String, String> {
-    result_to_string(upload_album_inner(app, state, album_name, album_id, artist, songs).await)
-}
-
-async fn upload_album_inner(
-    app: AppHandle,
-    state: State<'_, GuiState>,
-    album_name: &str,
-    album_id: &str,
-    artist: &str,
-    songs: Vec<Song>,
-) -> Result<String, MusicUploaderClientError> {
-    let logger = GuiLogger::new(app);
-    let album_id = album_id.to_string();
-    let album_name = album_name.to_string();
-    let artist = artist.to_string();
-    logger.log("gui backend received album upload request".to_string());
-    logger.album_is_uploading(&album_id);
-    let run_state = state
-        .run_state
-        .as_ref()
-        .ok_or(MusicUploaderClientError::BadConfig(
-            "Client did not succesfully boot".to_string(),
-        ))?;
-    let mut results: Vec<Result<String, MusicUploaderClientError>> = Vec::new();
-    for song in songs.iter() {
-        logger.file_is_uploading(&album_id, &song.path);
-        let result = send_song(run_state, &album_name, &artist, song).await;
-        logger.file_report(
-            &album_id,
-            &song.path,
-            result.is_ok(),
-            match &result {
-                Ok(message) => message.to_string(),
-                Err(e) => e.to_string(),
-            },
-        );
-        results.push(result);
-    }
-    let total_result = get_album_upload_result(results);
-    logger.album_report(
-        &album_id,
-        total_result.is_ok(),
-        match &total_result {
-            Ok(message) => message.to_string(),
-            Err(e) => e.to_string(),
-        },
-    );
-    total_result?;
-    trigger_scan_inner(state).await
-}
-
-async fn send_song(
-    run_state: &RunState,
-    album: &String,
-    artist: &String,
-    song: &Song,
-) -> Result<String, MusicUploaderClientError> {
-    let data = fs::read(&song.path)
-        .map_err(|e| MusicUploaderClientError::FileReadError(song.path.to_string(), Box::new(e)))?;
-    let result = run_state
-        .client
-        .send_song(
-            &run_state.get_config(),
-            data,
-            &artist,
-            &album,
-            &song.song_name,
-        )
-        .await;
-    // send report to the gui.
-    result
-}
-
-fn get_album_upload_result(
-    upload_results: Vec<Result<String, MusicUploaderClientError>>,
-) -> Result<String, MusicUploaderClientError> {
-    for result in upload_results {
-        match result {
-            Ok(_) => continue,
-            // i do not log error because i am assuming that a file report was generated for this file already.
-            Err(_) => {
-                return Err(MusicUploaderClientError::AlbumUploadFailure(
-                    "At least one song failed to upload".to_string(),
-                ))
-            }
-        }
-    }
-    Ok("All files in album uploaded succesfully".to_string())
 }
 
 #[tauri::command]
@@ -127,21 +31,6 @@ fn get_valid_extensions(state: State<'_, GuiState>) -> Vec<String> {
         .as_ref()
         .map(|s| s.settings.read().unwrap().valid_extensions.clone())
         .unwrap_or(Vec::new())
-}
-
-async fn trigger_scan_inner(
-    state: State<'_, GuiState>,
-) -> Result<String, MusicUploaderClientError> {
-    let run_state = state
-        .run_state
-        .as_ref()
-        .ok_or(MusicUploaderClientError::BadConfig(
-            "Client did not succesfully boot".to_string(),
-        ))?;
-    println!("stargin trigger scan");
-    let result = run_state.client.trigger_scan(&run_state.get_config()).await;
-    println!("finished triggering scan: {:?}", result);
-    result
 }
 
 #[tauri::command]

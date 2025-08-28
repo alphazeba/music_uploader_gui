@@ -1,6 +1,6 @@
 use std::{fmt::Debug, io, time::Duration};
 
-use music_uploader_server::model::{from_json, AlbumSearchResponse};
+use music_uploader_server::model::{from_json, AlbumSearchResponse, DeclareUploadResponse};
 use reqwest::{Client, RequestBuilder, Response};
 use serde::Deserialize;
 use thiserror::Error;
@@ -104,7 +104,53 @@ impl MusicUploaderClient {
             )
             .send()
             .await;
-        handle_response::<AlbumSearchResponse>(result).await
+        handle_response(result).await
+    }
+
+    pub async fn declare_upload(
+        &self,
+        config: &MusicUploaderClientConfig,
+        hash: &String,
+        artist: &String,
+        album: &String,
+        song_file_name: &String,
+        part_size_bytes: u32,
+    ) -> Result<DeclareUploadResponse, MusicUploaderClientError> {
+        let result = config
+            .apply_auth(
+                self.client
+                    .post(config.build_url("declareupload"))
+                    .header("hash", hash)
+                    .header("file", song_file_name)
+                    .header("album", album)
+                    .header("artist", artist)
+                    .header("part_size", part_size_bytes),
+            )
+            .send()
+            .await;
+        handle_response(result).await
+    }
+
+    pub async fn upload_part(
+        &self,
+        config: &MusicUploaderClientConfig,
+        key: &String,
+        index: u8,
+        file: Vec<u8>,
+    ) -> Result<String, MusicUploaderClientError> {
+        let hash = sha256::digest(&file);
+        let result = config
+            .apply_auth(
+                self.client
+                    .post(config.build_url("uploadpart"))
+                    .header("key", key)
+                    .header("hash", hash)
+                    .header("index", index as u16)
+                    .body(file),
+            )
+            .send()
+            .await;
+        handle_string_response(result).await
     }
 
     fn log(&self, text: String) {
