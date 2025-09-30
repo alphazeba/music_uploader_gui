@@ -2,7 +2,7 @@ use std::{collections::HashSet, fs};
 
 use music_uploader_server::model::DeclareUploadResponse;
 
-use crate::{gui_logger::GuiLogger, uploader_client::MusicUploaderClientError, RunState, Song};
+use crate::{gui_logger::GuiLogger, uploader_client::{MusicUploaderClient, MusicUploaderClientConfig, MusicUploaderClientError}, RunState, Song};
 
 pub async fn upload_song(
     run_state: &RunState,
@@ -18,13 +18,11 @@ pub async fn upload_song(
     }
 }
 
-const MEGABYTE_BYTES: usize = 1_000_000;
-// const KILOBYTE_BYTES: usize = 1_000;
-const DEFAULT_PART_SIZE: u32 = MEGABYTE_BYTES as u32;
 const MAX_MULTIPART_UPLOAD_ATTEMPT: u8 = 2;
 
 struct UploadState<'a> {
-    run_state: &'a RunState,
+    client: &'a MusicUploaderClient,
+    config: MusicUploaderClientConfig,
     logger: &'a GuiLogger,
     album: &'a String,
     artist: &'a String,
@@ -43,8 +41,11 @@ impl<'a> UploadState<'a> {
         let data = fs::read(&song.path).map_err(|e| {
             MusicUploaderClientError::FileReadError(song.path.to_string(), Box::new(e))
         })?;
+        let client = &run_state.client;
+        let config = run_state.get_config();
         Ok(Self {
-            run_state,
+            client,
+            config,
             logger,
             album,
             artist,
@@ -54,15 +55,14 @@ impl<'a> UploadState<'a> {
     }
 
     fn should_upload_in_parts(&self) -> bool {
-        let data_bytes = self.data.len();
-        data_bytes > MEGABYTE_BYTES
+        let data_bytes = self.data.len() as u32;
+        data_bytes > self.config.max_upload_part_size
     }
 
     async fn send_song(self) -> Result<String, MusicUploaderClientError> {
-        self.run_state
-            .client
+        self.client
             .send_song(
-                &self.run_state.get_config(),
+                &self.config,
                 self.data,
                 self.artist,
                 self.album,
@@ -76,43 +76,44 @@ impl<'a> UploadState<'a> {
         let hash = sha256::digest(&self.data);
         let declared_size_bytes = self.data.len() as u32;
         for attempt in 0..MAX_MULTIPART_UPLOAD_ATTEMPT {
-            let response = self.declare_upload(
+            match self.declare_upload(
                 &hash, 
-                DEFAULT_PART_SIZE,
+                self.config.max_upload_part_size,
                 declared_size_bytes,
-            ).await?;
-            let DeclareUploadResponse::Incomplete {
-                key,
-                declared_size: _,
-                part_size,
-                received_parts,
-            } = response
-            else {
-                match attempt {
-                    0 => {
-                        return Err(MusicUploaderClientError::AlbumUploadFailure(
-                            "Song already present".to_string(),
-                        ))
-                    }
-                    n => return Ok(format!("Succeeded multipart upload on {n} attempt")),
-                }
-            };
-            let received_parts = received_parts.into_iter().collect::<HashSet<_>>();
-            let num_parts = self.calculate_num_parts(part_size)?;
-            for index in 0..num_parts {
-                if received_parts.contains(&index) {
-                    self.logger.log(format!(
-                        "Skipping part {index} because it has already been uploaded"
-                    ));
-                    continue;
-                }
-                let result = self.upload_part(&key, index, part_size as usize).await?;
-                self.logger.log(format!("Upload part result: {result}"));
+            ).await? {
+                DeclareUploadResponse::Complete => return Ok(match attempt {
+                    0 => "Song already present".to_string(),
+                    n => format!("Succeeded multipart upload on {n} attempt"),
+                }),
+                DeclareUploadResponse::Incomplete {
+                    key,
+                    declared_size: _,
+                    part_size,
+                    received_parts
+                } => self.upload_remaining_parts(key, part_size, received_parts).await?,
             }
         }
         Err(MusicUploaderClientError::AlbumUploadFailure(format!(
             "Could not upload after {MAX_MULTIPART_UPLOAD_ATTEMPT} attempts"
         )))
+    }
+
+    async fn upload_remaining_parts(
+        &self, key: String, part_size: u32, received_parts: Vec<u8>
+    ) -> Result<(), MusicUploaderClientError> {
+        let received_parts = received_parts.into_iter().collect::<HashSet<_>>();
+        let num_parts = self.calculate_num_parts(part_size)?;
+        for index in 0..num_parts {
+            if received_parts.contains(&index) {
+                self.logger.log(format!(
+                    "Skipping part {index} because it has already been uploaded"
+                ));
+                continue;
+            }
+            let result = self.upload_part(&key, index, part_size as usize).await?;
+            self.logger.log(format!("Upload part result: {result}"));
+        }
+        Ok(())
     }
 
     fn calculate_num_parts(&self, part_size: u32) -> Result<u8, MusicUploaderClientError> {
@@ -137,10 +138,9 @@ impl<'a> UploadState<'a> {
         part_size_bytes: u32,
         declared_size_bytes: u32,
     ) -> Result<DeclareUploadResponse, MusicUploaderClientError> {
-        self.run_state
-            .client
+        self.client
             .declare_upload(
-                &self.run_state.get_config(),
+                &self.config,
                 hash,
                 self.artist,
                 self.album,
@@ -165,9 +165,8 @@ impl<'a> UploadState<'a> {
             )));
         }
         let data = &self.data[start..end];
-        self.run_state
-            .client
-            .upload_part(&self.run_state.get_config(), key, index, data.to_vec())
+        self.client
+            .upload_part(&self.config, key, index, data.to_vec())
             .await
     }
 }

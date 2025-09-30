@@ -11,12 +11,16 @@ use crate::uploader_client::MusicUploaderClientConfig;
 
 const SETTINGS_FILE_NAME: &str = "Settings.toml";
 
+const DEFAULT_PART_SIZE_MB: u32 = 5;
+const MEGABYTE_BYTES: u32 = 1_000_000;
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Settings {
     pub user: String,
     password: String,
     pub valid_extensions: Vec<String>,
     pub server_url: String,
+    pub max_part_size_mb: Option<u32>,
 }
 
 impl Settings {
@@ -25,6 +29,7 @@ impl Settings {
             user: self.user.clone(),
             password: self.password.clone(),
             server_url: self.server_url.clone(),
+            max_upload_part_size: self.max_part_size_mb.unwrap_or(DEFAULT_PART_SIZE_MB) * MEGABYTE_BYTES,
         }
     }
 
@@ -33,6 +38,7 @@ impl Settings {
             user: self.user.clone(),
             password: self.password.clone(),
             server_url: self.server_url.clone(),
+            max_part_size_mb: self.max_part_size_mb.unwrap_or(DEFAULT_PART_SIZE_MB)
         }
     }
 
@@ -40,6 +46,7 @@ impl Settings {
         self.user = user_editable_settings.user;
         self.password = user_editable_settings.password;
         self.server_url = user_editable_settings.server_url;
+        self.max_part_size_mb = Some(user_editable_settings.max_part_size_mb);
     }
 
     pub fn save_settings(&self, app: &AppHandle) -> Result<String, String> {
@@ -61,6 +68,7 @@ pub struct UserEditableSettings {
     pub user: String,
     pub password: String,
     pub server_url: String,
+    pub max_part_size_mb: u32,
 }
 
 pub struct LoadSettingsResult {

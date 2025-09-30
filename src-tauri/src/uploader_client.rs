@@ -11,6 +11,7 @@ pub struct MusicUploaderClientConfig {
     pub user: String,
     pub password: String,
     pub server_url: String,
+    pub max_upload_part_size: u32,
 }
 
 impl MusicUploaderClientConfig {
@@ -125,8 +126,8 @@ impl MusicUploaderClient {
                     .header("file", song_file_name)
                     .header("album", album)
                     .header("artist", artist)
-                    .header("part_size", part_size_bytes)
-                    .header("declared_size", declared_size_bytes)
+                    .header("partsize", part_size_bytes)
+                    .header("declaredsize", declared_size_bytes)
             )
             .send()
             .await;

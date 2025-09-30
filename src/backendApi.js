@@ -34,11 +34,12 @@ export async function get_settings() {
     return await invoke("get_settings");
 }
 
-export async function save_settings(user, password, url) {
+export async function save_settings(user, password, url, maxPartSizeMb) {
     return await invoke("save_settings", {
         user,
         password,
         url,
+        maxPartSizeMb,
     });
 }
 

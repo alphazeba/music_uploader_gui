@@ -6,6 +6,7 @@ export function Settings({guiLog, pageState}) {
     const [user, setUser] = useState("");
     const [password, setPassword] = useState("");
     const [url, setUrl] = useState("");
+    const [maxPartSizeMb, setMaxPartSizeMb] = useState(1);
 
     useEffect(() => {
         loadSettings();
@@ -20,14 +21,29 @@ export function Settings({guiLog, pageState}) {
         setUser(settings.user);
         setPassword(settings.password);
         setUrl(settings.server_url);
+        setMaxPartSizeMb(settings.max_part_size_mb);
     }
 
     const handleSave = () => {
-        save_settings(user, password, url)
+        if (!validateUserInput()) {
+            guiLog("settings are not being saved, please fix issues");
+        }
+        save_settings(user, password, url, maxPartSizeMb)
             .then(result => {
                 guiLog(result);
                 validateAndLoadSettings();
+            })
+            .catch(e => {
+                guiLog(e);
             });
+    }
+
+    const validateUserInput = () => {
+        if (maxPartSizeMb < 1) {
+            guiLog("Error: max part size must be greater than 1");
+            return false;
+        }
+        return true;
     }
 
     const validateAndLoadSettings = () => {
@@ -39,6 +55,14 @@ export function Settings({guiLog, pageState}) {
     const loadSettings = () => {
         get_settings()
             .then(result => handleGetSettingsResult(result));
+    }
+
+    const handleUserInt = (strVal) => {
+        let n = parseInt(strVal);
+        if (isNaN(n)) {
+            return 0;
+        }
+        return n;
     }
 
     return <div>
@@ -91,6 +115,19 @@ export function Settings({guiLog, pageState}) {
                             onChange={(e) => setUrl(e.currentTarget.value)}
                             placeholder="enter server url..."
                             value={url}
+                        />
+                    </span>
+                </div>
+                <div className="row buttspace">
+                    <span>
+                        <span className="settingsLabel">
+                            max upload part (mb)
+                        </span>
+                        <input
+                            className="interactable"
+                            onChange={(e) => setMaxPartSizeMb(handleUserInt(e.currentTarget.value))}
+                            placeholder="mb"
+                            value={maxPartSizeMb}
                         />
                     </span>
                 </div>

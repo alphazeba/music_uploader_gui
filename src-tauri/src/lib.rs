@@ -128,6 +128,7 @@ fn save_settings(
     user: String,
     password: String,
     url: String,
+    max_part_size_mb: u32,
 ) -> Result<String, String> {
     match state.run_state.as_ref() {
         Some(run_state) => {
@@ -135,6 +136,7 @@ fn save_settings(
                 user,
                 password,
                 server_url: url,
+                max_part_size_mb,
             };
             let to_save = {
                 let mut settings = run_state.settings.write().unwrap();
